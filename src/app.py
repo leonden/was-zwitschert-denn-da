@@ -1,35 +1,27 @@
-from flask import Flask, render_template, Response
+from picamera2 import Picamera2
 import cv2
+from flask import Flask, render_template, Response
+import numpy as np
 
 app = Flask(__name__)
+
+picam2 = Picamera2()
+picam2.configure(picam2.create_preview_configuration(main={"format": "XRGB8888", "size": (640, 480)}))
+picam2.start()
 
 @app.route('/')
 def index():
     """Video streaming home page."""
     return render_template('index.html')
 
-def gen(camera_index=0):
+def gen():
     """Video streaming generator function."""
-    vs = cv2.VideoCapture(camera_index)  # Try different camera index here if 0 doesn't work.
-    if not vs.isOpened():
-        print(f"Cannot open camera {camera_index}")
-        return
-
     while True:
-        ret, frame = vs.read()
-        if not ret:
-            print("Failed to grab frame")
-            break
+        frame = picam2.capture_array()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         ret, jpeg = cv2.imencode('.jpg', frame)
-        if not ret:
-            print("Failed to encode frame")
-            break
-        frame = jpeg.tobytes()
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-    vs.release()
-    cv2.destroyAllWindows()
+               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
 @app.route('/video_feed')
 def video_feed():
